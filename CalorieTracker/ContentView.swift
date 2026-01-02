@@ -12,6 +12,13 @@
 //  Created by Joanne Kuang on 2026/1/2.
 //
 
+//
+//  ContentView.swift
+//  CalorieTracker
+//
+//  Created by Joanne Kuang on 2026/1/2.
+//
+
 import SwiftUI
 import Charts
 
@@ -70,7 +77,7 @@ func saveEntries(_ entries: [DailyEntry]) {
 func loadEntries() -> [DailyEntry] {
     if let data = UserDefaults.standard.data(forKey: "dailyEntries"),
        let decoded = try? JSONDecoder().decode([DailyEntry].self, from: data) {
-        return decoded
+        return decoded.sorted(by: { $0.date > $1.date }) // newest first
     }
     return []
 }
@@ -192,7 +199,7 @@ struct ContentView: View {
                                         UIApplication.shared.hideKeyboard()
                                     }
                                 }
-                                .filledButton(background: .sageGreen, foreground: .inkBlue) // swapped style
+                                .filledButton(background: .sageGreen, foreground: .inkBlue)
                                 
                                 ForEach(foodList) { food in
                                     HStack {
@@ -221,7 +228,7 @@ struct ContentView: View {
                                 Button(appText("Save Entry")) {
                                     saveTodayEntry()
                                 }
-                                .filledButton(background: .inkBlue) // swapped style
+                                .filledButton(background: .inkBlue)
                             }
                         }
                     }
@@ -239,7 +246,7 @@ struct ContentView: View {
                             if !entries.isEmpty {
                                 card(background: .white) {
                                     Chart {
-                                        ForEach(entries.sorted(by: { $0.date < $1.date }), id: \.id) { entry in
+                                        ForEach(entries, id: \.id) { entry in
                                             BarMark(
                                                 x: .value("Date", shortDateFormatter.string(from: entry.date)),
                                                 y: .value("Calories", entry.totalKcal)
@@ -256,134 +263,58 @@ struct ContentView: View {
                                 .padding(.horizontal)
                             }
                             
+                            // History entries: allow reorder in EditMode
                             LazyVStack(spacing: 12) {
                                 ForEach(entries) { entry in
-                                    card {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            
-                                            HStack {
-                                                if editMode == .active {
-                                                    Button(action: { toggleSelection(entry.id) }) {
-                                                        Image(systemName: selected.contains(entry.id) ? "checkmark.circle.fill" : "circle")
-                                                            .foregroundColor(.inkBlue)
-                                                    }
-                                                }
-                                                
-                                                if editMode == .active {
-                                                    DatePicker("", selection: bindingForEntry(entry), displayedComponents: .date)
-                                                        .labelsHidden()
-                                                        .frame(width: 140)
-                                                } else {
-                                                    Text(entry.date, formatter: shortDateFormatter)
-                                                        .bold()
-                                                }
-                                                
-                                                if entry.vomited {
-                                                    Circle()
-                                                        .fill(Color.red)
-                                                        .frame(width: 10, height: 10)
-                                                }
-                                                
-                                                Spacer()
-                                                Text("\(entry.totalKcal) kcal")
-                                                
-                                                if editMode == .inactive {
-                                                    Button(action: { toggle(entry.id) }) {
-                                                        Image(systemName: expanded.contains(entry.id) ? "chevron.up" : "chevron.down")
-                                                    }
-                                                }
-                                            }
-                                            
-                                            if expanded.contains(entry.id) {
-                                                Divider()
-                                                
-                                                ForEach(entry.foods) { food in
-                                                    HStack {
-                                                        Text(food.name)
-                                                        Spacer()
-                                                        if food.unit == .kcal {
-                                                            Text("\(food.value) kcal")
-                                                        } else {
-                                                            Text("\(Int(food.kcalValue)) kcal (\(food.value) kJ)")
-                                                        }
-                                                        if editMode == .active {
-                                                            Button {
-                                                                deleteFood(entry: entry, foodID: food.id)
-                                                            } label: {
-                                                                Image(systemName: "trash")
-                                                                    .foregroundColor(.red)
-                                                            }
-                                                        }
-                                                    }
-                                                    .padding(.horizontal, 16)
-                                                }
-                                                
-                                                HStack {
-                                                    Text("Steps: \(entry.steps)")
-                                                    Spacer()
-                                                    if editMode == .active {
-                                                        Button {
-                                                            deleteSteps(entry: entry)
-                                                        } label: {
-                                                            Image(systemName: "trash")
-                                                                .foregroundColor(.red)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                                    EntryRow(entry: entry, editMode: $editMode, expanded: $expanded, selected: $selected, bindingForEntry: bindingForEntry(_:), deleteFood: deleteFood, deleteSteps: deleteSteps)
                                 }
                             }
-                            .padding(.horizontal)
+
                         }
                         .padding(.vertical)
                     }
                     
                     // Floating buttons
                     HStack(spacing: 16) {
-                        // Manage button (matches Add Food style)
+                        // Manage button
                         Button {
-                                withAnimation {
-                                    editMode = editMode == .active ? .inactive : .active
-                                    selected.removeAll()
+                            withAnimation {
+                                editMode = editMode == .active ? .inactive : .active
+                                selected.removeAll()
+                                showAvgCard = false
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                        }
+                        .filledButton(background: .inkBlue)
+                        
+                        if editMode == .active && !selected.isEmpty {
+                            // Calculate Avg Icon
+                            Button {
+                                if !showAvgCard {
+                                    calculateAverage()
+                                } else {
                                     showAvgCard = false
+                                    selected.removeAll()
                                 }
                             } label: {
-                                Image(systemName: "ellipsis.circle")
+                                Image(systemName: "sum")
                                     .font(.title2)
-                                    .foregroundColor(.white)
                             }
-                            .filledButton(background: .inkBlue)
-                        
-                        // Show calculate button only in manage mode
-                        if editMode == .active {
-                            if !selected.isEmpty {
-                                // Calculate Avg Icon
-                                Button {
-                                    if !showAvgCard {
-                                        calculateAverage()
-                                    } else {
-                                        showAvgCard = false
-                                        selected.removeAll()
-                                    }
-                                } label: {
-                                    Image(systemName: "sum") // icon for sum / average
-                                        .font(.title2)
-                                }
-                                .filledButton(background: .sageGreen, foreground: .inkBlue)
-                                
-                                // Delete Icon
-                                Button {
-                                    deleteSelectedEntries()
-                                } label: {
-                                    Image(systemName: "trash") // trash icon
-                                        .font(.title2)
-                                }
-                                .filledButton(background: .red, foreground: .white)
+                            .filledButton(background: .sageGreen, foreground: .inkBlue)
+                            
+                            // Delete Icon
+                            Button {
+                                deleteSelectedEntries()
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.title2)
                             }
+                            .filledButton(background: .red, foreground: .white)
                         }
-                        }
+                    }
                     .padding()
                 }
                 .tabItem { Label(appText("History"), systemImage: "list.bullet") }
@@ -442,6 +373,7 @@ struct ContentView: View {
             let entry = DailyEntry(date: selectedDate, foods: foodList, steps: Int(steps) ?? 0, vomited: vomited)
             entries.insert(entry, at: 0)
         }
+        entries.sort(by: { $0.date > $1.date })
         saveEntries(entries)
         resetToday()
     }
@@ -510,6 +442,106 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Entry Row Subview
+struct EntryRow: View {
+    var entry: DailyEntry
+    @Binding var editMode: EditMode
+    @Binding var expanded: Set<UUID>
+    @Binding var selected: Set<UUID>
+    
+    var bindingForEntry: (DailyEntry) -> Binding<Date>
+    var deleteFood: (DailyEntry, UUID) -> Void
+    var deleteSteps: (DailyEntry) -> Void
+    
+    var body: some View {
+        card {
+            VStack(alignment: .leading, spacing: 8) {
+                
+                HStack {
+                    if editMode == .active {
+                        Button(action: { toggleSelection(entry.id) }) {
+                            Image(systemName: selected.contains(entry.id) ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(.inkBlue)
+                        }
+                    }
+                    
+                    if editMode == .active {
+                        DatePicker("", selection: bindingForEntry(entry), displayedComponents: .date)
+                            .labelsHidden()
+                            .frame(width: 140)
+                    } else {
+                        Text(entry.date, formatter: DateFormatter.shortDateFormatter)
+                            .bold()
+                    }
+                    
+                    if entry.vomited {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 10, height: 10)
+                    }
+                    
+                    Spacer()
+                    Text("\(entry.totalKcal) kcal")
+                    
+                    if editMode == .inactive {
+                        Button(action: { toggle(entry.id) }) {
+                            Image(systemName: expanded.contains(entry.id) ? "chevron.up" : "chevron.down")
+                        }
+                    }
+                }
+                
+                if expanded.contains(entry.id) {
+                    Divider()
+                    
+                    ForEach(entry.foods) { food in
+                        HStack {
+                            Text(food.name)
+                            Spacer()
+                            if food.unit == .kcal {
+                                Text("\(food.value) kcal")
+                            } else {
+                                Text("\(Int(food.kcalValue)) kcal (\(food.value) kJ)")
+                            }
+                            if editMode == .active {
+                                Button {
+                                    deleteFood(entry, food.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.red)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    
+                    HStack {
+                        Text("Steps: \(entry.steps)")
+                        Spacer()
+                        if editMode == .active {
+                            Button {
+                                deleteSteps(entry)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func toggle(_ id: UUID) {
+        if expanded.contains(id) { expanded.remove(id) }
+        else { expanded.insert(id) }
+    }
+    
+    private func toggleSelection(_ id: UUID) {
+        if selected.contains(id) { selected.remove(id) }
+        else { selected.insert(id) }
+    }
+}
+
 // MARK: - Settings Page
 struct SettingsView: View {
     @Binding var appLanguage: AppLanguage
@@ -532,10 +564,20 @@ struct SettingsView: View {
     }
 }
 
+// MARK: - DateFormatter Extension
+extension DateFormatter {
+    static let shortDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d yyyy"
+        return f
+    }()
+}
+
 // MARK: - Preview
 #Preview {
     ContentView()
 }
+
 
 
 
