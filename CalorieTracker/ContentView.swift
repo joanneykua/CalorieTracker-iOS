@@ -215,7 +215,7 @@ struct ContentView: View {
                                     .keyboardType(.numberPad)
                                     .font(.system(.body, design: .monospaced))
                                 
-                                Toggle(appText("Vomited Today"), isOn: $vomited)
+                                Toggle(appText("Binge Eating"), isOn: $vomited)
                                     .tint(.roseDust)
                                 
                                 Button(appText("Save Entry")) {
@@ -344,34 +344,46 @@ struct ContentView: View {
                     HStack(spacing: 16) {
                         // Manage button (matches Add Food style)
                         Button {
-                            withAnimation {
-                                editMode = editMode == .active ? .inactive : .active
-                                selected.removeAll()
+                                withAnimation {
+                                    editMode = editMode == .active ? .inactive : .active
+                                    selected.removeAll()
+                                    showAvgCard = false
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.title2)
+                                    .foregroundColor(.white)
                             }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                                .font(.title2)
-                                .foregroundColor(.white)
-                        }
-                        .filledButton(background: .inkBlue) // same as Add Food
+                            .filledButton(background: .inkBlue)
                         
                         // Show calculate button only in manage mode
                         if editMode == .active {
-                            Button {
-                                if !selected.isEmpty && !showAvgCard {
-                                    calculateAverage()
-                                } else if showAvgCard {
-                                    showAvgCard = false
-                                    selected.removeAll()
+                            if !selected.isEmpty {
+                                // Calculate Avg Icon
+                                Button {
+                                    if !showAvgCard {
+                                        calculateAverage()
+                                    } else {
+                                        showAvgCard = false
+                                        selected.removeAll()
+                                    }
+                                } label: {
+                                    Image(systemName: "sum") // icon for sum / average
+                                        .font(.title2)
                                 }
-                            } label: {
-                                Text(showAvgCard ? "Done" : "Calculate Avg")
-                                    .font(.body)
-                                    .padding(.horizontal)
+                                .filledButton(background: .sageGreen, foreground: .inkBlue)
+                                
+                                // Delete Icon
+                                Button {
+                                    deleteSelectedEntries()
+                                } label: {
+                                    Image(systemName: "trash") // trash icon
+                                        .font(.title2)
+                                }
+                                .filledButton(background: .red, foreground: .white)
                             }
-                            .filledButton(background: .sageGreen, foreground: .inkBlue)
                         }
-                    }
+                        }
                     .padding()
                 }
                 .tabItem { Label(appText("History"), systemImage: "list.bullet") }
@@ -446,6 +458,12 @@ struct ContentView: View {
         )
     }
     
+    func deleteSelectedEntries() {
+        entries.removeAll { selected.contains($0.id) }
+        saveEntries(entries)
+        selected.removeAll()
+    }
+
     func deleteFood(entry: DailyEntry, foodID: UUID) {
         if let idx = entries.firstIndex(where: { $0.id == entry.id }) {
             entries[idx].foods.removeAll { $0.id == foodID }
@@ -481,7 +499,7 @@ struct ContentView: View {
             case "Add Food": return "添加食物"
             case "Daily Total": return "每日总量"
             case "Steps Walked": return "步数"
-            case "Vomited Today": return "今天呕吐"
+            case "Binge Eating": return "是否暴食"
             case "Save Entry": return "保存记录"
             case "Today": return "今日"
             case "History": return "历史"
