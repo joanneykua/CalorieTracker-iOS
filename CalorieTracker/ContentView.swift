@@ -5,12 +5,6 @@
 //  Created by Joanne Kuang on 2026/1/2.
 //
 
-//
-//  ContentView.swift
-//  CalorieTracker
-//
-//  Created by Joanne Kuang on 2026/1/2.
-//
 
 //
 //  ContentView.swift
@@ -77,7 +71,7 @@ func saveEntries(_ entries: [DailyEntry]) {
 func loadEntries() -> [DailyEntry] {
     if let data = UserDefaults.standard.data(forKey: "dailyEntries"),
        let decoded = try? JSONDecoder().decode([DailyEntry].self, from: data) {
-        return decoded.sorted(by: { $0.date > $1.date }) // newest first
+        return decoded.sorted(by: { $0.date > $1.date })
     }
     return []
 }
@@ -154,6 +148,7 @@ struct ContentView: View {
     
     // Settings
     @AppStorage("appLanguage") private var appLanguage: AppLanguage = .english
+    @AppStorage("showLineGraph") private var showLineGraph: Bool = false
     
     let shortDateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -244,23 +239,39 @@ struct ContentView: View {
                             
                             // Graph card on top
                             if !entries.isEmpty {
-                                card(background: .white) {
-                                    Chart {
-                                        ForEach(entries, id: \.id) { entry in
-                                            BarMark(
-                                                x: .value("Date", shortDateFormatter.string(from: entry.date)),
-                                                y: .value("Calories", entry.totalKcal)
-                                            )
-                                            .annotation(position: .top) {
-                                                Text("\(entry.totalKcal)")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.inkBlue)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    ZStack(alignment: .leading) {
+                                        VStack {
+                                            card(background: .white) {
+                                                Chart {
+                                                    if showLineGraph {
+                                                        ForEach(entries.sorted(by: { $0.date < $1.date }), id: \.id) { entry in
+                                                            LineMark(
+                                                                x: .value("Date", shortDateFormatter.string(from: entry.date)),
+                                                                y: .value("Calories", entry.totalKcal)
+                                                            )
+                                                        }
+                                                    } else {
+                                                         
+                                                        ForEach(entries.sorted(by: { $0.date < $1.date }), id: \.id) { entry in
+                                                            BarMark(
+                                                                x: .value("Date", shortDateFormatter.string(from: entry.date)),
+                                                                y: .value("Calories", entry.totalKcal)
+                                                            )
+                                                            .annotation(position: .top) {
+                                                                Text("\(entry.totalKcal)")
+                                                                    .font(.caption2)
+                                                                    .foregroundColor(.inkBlue)
+                                                            }
+                                                            
+                                                        }
+                                                    }
+                                                }
+                                                .frame(width: max(CGFloat(entries.count) * 40, 300), height: 250)
                                             }
                                         }
                                     }
-                                    .frame(width: max(CGFloat(entries.count) * 60, 300), height: 250)
                                 }
-                                .padding(.horizontal)
                             }
                             
                             // History entries: allow reorder in EditMode
@@ -269,9 +280,9 @@ struct ContentView: View {
                                     EntryRow(entry: entry, editMode: $editMode, expanded: $expanded, selected: $selected, bindingForEntry: bindingForEntry(_:), deleteFood: deleteFood, deleteSteps: deleteSteps)
                                 }
                             }
-
                         }
                         .padding(.vertical)
+                        .padding(.bottom, 120) // extra space so floating buttons don't cover last row
                     }
                     
                     // Floating buttons
@@ -320,7 +331,7 @@ struct ContentView: View {
                 .tabItem { Label(appText("History"), systemImage: "list.bullet") }
                 
                 // MARK: Settings
-                SettingsView(appLanguage: $appLanguage)
+                SettingsView(appLanguage: $appLanguage, showLineGraph: $showLineGraph)
                     .tabItem { Label(appText("Settings"), systemImage: "gearshape") }
             }
             .accentColor(.inkBlue)
@@ -529,6 +540,7 @@ struct EntryRow: View {
                 }
             }
         }
+        .frame(maxWidth: 350) // narrower entry blocks
     }
     
     private func toggle(_ id: UUID) {
@@ -545,6 +557,7 @@ struct EntryRow: View {
 // MARK: - Settings Page
 struct SettingsView: View {
     @Binding var appLanguage: AppLanguage
+    @Binding var showLineGraph: Bool
     
     var body: some View {
         VStack(spacing: 24) {
@@ -553,6 +566,12 @@ struct SettingsView: View {
             VStack(spacing: 16) {
                 Picker("Language", selection: $appLanguage) {
                     ForEach(AppLanguage.allCases, id: \.self) { Text($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
+                
+                Picker("Graph Type", selection: $showLineGraph) {
+                    Text("Histogram").tag(false)
+                    Text("Line").tag(true)
                 }
                 .pickerStyle(.segmented)
             }
@@ -577,18 +596,3 @@ extension DateFormatter {
 #Preview {
     ContentView()
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
