@@ -252,7 +252,6 @@ struct ContentView: View {
                                                             )
                                                         }
                                                     } else {
-                                                         
                                                         ForEach(entries.sorted(by: { $0.date < $1.date }), id: \.id) { entry in
                                                             BarMark(
                                                                 x: .value("Date", shortDateFormatter.string(from: entry.date)),
